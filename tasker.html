@@ -619,9 +619,6 @@
 
         <div class="begin-tasks-section">
             <button class="begin-tasks-btn" id="beginTasksBtn" disabled>Begin Tasks</button>
-            <button class="begin-tasks-btn" id="testBtn"
-                style="background: rgba(0, 0, 0, 0.8); border: 2px solid rgba(255, 100, 0, 0.5); color: #FF6B35; margin-left: 15px;">Test
-                (5 sec)</button>
         </div>
 
         <div class="current-task-indicator" id="currentTaskIndicator" style="display: none;">
@@ -736,11 +733,6 @@
                     }
                 });
 
-                // Test button
-                document.getElementById('testBtn').addEventListener('click', () => {
-                    this.testSequentialTasks();
-                });
-
                 // Template buttons
                 document.getElementById('saveTemplateBtn').addEventListener('click', () => {
                     this.saveTemplate();
@@ -839,22 +831,6 @@
                 this.startNextTask();
             }
 
-            testSequentialTasks() {
-                // Create test tasks with 5-second durations
-                const testTasks = [
-                    { id: Date.now() + 1, text: "Test Task 1", time: "00:00:05", hours: 0, minutes: 0, seconds: 5, completed: false, createdAt: new Date().toISOString() },
-                    { id: Date.now() + 2, text: "Test Task 2", time: "00:00:05", hours: 0, minutes: 0, seconds: 5, completed: false, createdAt: new Date().toISOString() },
-                    { id: Date.now() + 3, text: "Test Task 3", time: "00:00:05", hours: 0, minutes: 0, seconds: 5, completed: false, createdAt: new Date().toISOString() }
-                ];
-
-                this.tasks[this.currentDay] = testTasks;
-                this.saveTasks();
-                this.renderTasks();
-                this.updateBeginButton();
-
-                console.log('Test tasks created:', testTasks);
-                this.beginSequentialTasks();
-            }
 
             stopSequentialTimer() {
                 this.isRunning = false;
@@ -1046,10 +1022,10 @@
             }
 
             updateStats() {
-                const allTasks = Object.values(this.tasks).flat();
-                const completedTasks = allTasks.filter(task => task.completed);
+                const dayTasks = this.tasks[this.currentDay] || [];
+                const completedTasks = dayTasks.filter(task => task.completed);
 
-                const totalTimeInMinutes = allTasks.reduce((total, task) => {
+                const totalTimeInMinutes = dayTasks.reduce((total, task) => {
                     // Use the stored hours, minutes and seconds, or parse from time string for backward compatibility
                     if (task.hours !== undefined && task.minutes !== undefined && task.seconds !== undefined) {
                         return total + (task.hours * 60) + task.minutes + (task.seconds / 60);
@@ -1070,7 +1046,7 @@
                     }
                 }, 0);
 
-                document.getElementById('totalTasks').textContent = allTasks.length;
+                document.getElementById('totalTasks').textContent = dayTasks.length;
                 document.getElementById('completedTasks').textContent = completedTasks.length;
 
                 // Display total time in hours and minutes
@@ -1126,7 +1102,8 @@
                 this.renderTemplates();
                 document.getElementById('templateNameInput').value = '';
 
-                alert(`Template "${templateName}" saved successfully!`);
+                // Show success message
+                this.showTemplateMessage(`Template "${templateName}" saved successfully!`, 'success');
             }
 
             loadTemplate(templateId) {
@@ -1188,12 +1165,61 @@
             }
 
             saveTemplates() {
-                localStorage.setItem('taskManager_templates', JSON.stringify(this.templates));
+                try {
+                    localStorage.setItem('taskManager_templates', JSON.stringify(this.templates));
+                    console.log('Templates saved successfully:', this.templates.length, 'templates');
+                } catch (error) {
+                    console.error('Failed to save templates:', error);
+                    alert('Failed to save templates. Please try again.');
+                }
             }
 
             loadTemplates() {
-                const saved = localStorage.getItem('taskManager_templates');
-                return saved ? JSON.parse(saved) : [];
+                try {
+                    const saved = localStorage.getItem('taskManager_templates');
+                    const templates = saved ? JSON.parse(saved) : [];
+                    console.log('Templates loaded successfully:', templates.length, 'templates');
+                    return templates;
+                } catch (error) {
+                    console.error('Failed to load templates:', error);
+                    return [];
+                }
+            }
+
+            showTemplateMessage(message, type = 'success') {
+                // Create a temporary message element
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: ${type === 'success' ? 'rgba(0, 200, 0, 0.9)' : 'rgba(200, 0, 0, 0.9)'};
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    z-index: 10000;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+                    transform: translateX(100%);
+                    transition: transform 0.3s ease;
+                `;
+                messageDiv.textContent = message;
+
+                document.body.appendChild(messageDiv);
+
+                // Animate in
+                setTimeout(() => {
+                    messageDiv.style.transform = 'translateX(0)';
+                }, 100);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    messageDiv.style.transform = 'translateX(100%)';
+                    setTimeout(() => {
+                        document.body.removeChild(messageDiv);
+                    }, 300);
+                }, 3000);
             }
         }
 
