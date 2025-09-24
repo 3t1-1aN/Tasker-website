@@ -285,6 +285,44 @@
             opacity: 0.9;
         }
 
+        .timer-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .pause-btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            color: #FFD700;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .pause-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: rgba(255, 215, 0, 0.6);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+        }
+
+        .pause-btn.paused {
+            background: rgba(255, 165, 0, 0.2);
+            border-color: rgba(255, 165, 0, 0.6);
+            color: #FFA500;
+        }
+
+        .pause-btn.paused:hover {
+            background: rgba(255, 165, 0, 0.3);
+            border-color: rgba(255, 165, 0, 0.8);
+        }
+
         .progress-bar {
             width: 100%;
             height: 8px;
@@ -627,6 +665,9 @@
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
+            <div class="timer-controls">
+                <button class="pause-btn" id="pauseBtn">Pause</button>
+            </div>
         </div>
 
         <div class="template-section">
@@ -687,8 +728,11 @@
                 this.templates = this.loadTemplates();
                 this.timers = new Map();
                 this.isRunning = false;
+                this.isPaused = false;
                 this.currentTaskIndex = 0;
                 this.currentTimer = null;
+                this.remainingSeconds = 0;
+                this.totalSeconds = 0;
                 this.init();
             }
 
@@ -740,6 +784,11 @@
 
                 document.getElementById('clearDayBtn').addEventListener('click', () => {
                     this.clearCurrentDay();
+                });
+
+                // Pause button
+                document.getElementById('pauseBtn').addEventListener('click', () => {
+                    this.togglePause();
                 });
             }
 
@@ -834,6 +883,7 @@
 
             stopSequentialTimer() {
                 this.isRunning = false;
+                this.isPaused = false;
                 if (this.currentTimer) {
                     clearInterval(this.currentTimer);
                     this.currentTimer = null;
@@ -864,31 +914,29 @@
             }
 
             startTaskTimer(task) {
-                let totalSeconds;
-
                 // Use the stored hours, minutes and seconds, or parse from time string for backward compatibility
                 if (task.hours !== undefined && task.minutes !== undefined && task.seconds !== undefined) {
-                    totalSeconds = task.hours * 3600 + task.minutes * 60 + task.seconds;
+                    this.totalSeconds = task.hours * 3600 + task.minutes * 60 + task.seconds;
                 } else if (task.minutes !== undefined && task.seconds !== undefined) {
                     // Fallback for old format without hours
-                    totalSeconds = task.minutes * 60 + task.seconds;
+                    this.totalSeconds = task.minutes * 60 + task.seconds;
                 } else {
                     // Fallback for old format - parse HH:MM:SS or MM:SS
                     const timeParts = task.time.split(':');
                     if (timeParts.length === 3) {
                         // HH:MM:SS format
                         const [hours, minutes, seconds] = timeParts.map(Number);
-                        totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                        this.totalSeconds = hours * 3600 + minutes * 60 + seconds;
                     } else {
                         // MM:SS format
                         const [minutes, seconds] = timeParts.map(Number);
-                        totalSeconds = minutes * 60 + seconds;
+                        this.totalSeconds = minutes * 60 + seconds;
                     }
                 }
 
-                let remainingSeconds = totalSeconds;
+                this.remainingSeconds = this.totalSeconds;
 
-                console.log('Starting timer for task:', task.text, 'Duration:', totalSeconds, 'seconds');
+                console.log('Starting timer for task:', task.text, 'Duration:', this.totalSeconds, 'seconds');
 
                 // Update the task list to show active task
                 this.renderTasks();
@@ -899,16 +947,18 @@
                 }
 
                 this.currentTimer = setInterval(() => {
-                    remainingSeconds--;
-                    console.log('Timer tick:', remainingSeconds);
-                    this.updateTimerDisplay(remainingSeconds);
-                    this.updateProgressBar((totalSeconds - remainingSeconds) / totalSeconds * 100);
+                    if (!this.isPaused) {
+                        this.remainingSeconds--;
+                        console.log('Timer tick:', this.remainingSeconds);
+                        this.updateTimerDisplay(this.remainingSeconds);
+                        this.updateProgressBar((this.totalSeconds - this.remainingSeconds) / this.totalSeconds * 100);
 
-                    if (remainingSeconds <= 0) {
-                        console.log('Task completed:', task.text);
-                        clearInterval(this.currentTimer);
-                        this.currentTimer = null;
-                        this.completeCurrentTask();
+                        if (this.remainingSeconds <= 0) {
+                            console.log('Task completed:', task.text);
+                            clearInterval(this.currentTimer);
+                            this.currentTimer = null;
+                            this.completeCurrentTask();
+                        }
                     }
                 }, 1000);
             }
@@ -936,6 +986,7 @@
 
             completeAllTasks() {
                 this.isRunning = false;
+                this.isPaused = false;
                 this.currentTaskIndex = 0;
                 this.hideCurrentTaskIndicator();
                 this.updateBeginButton();
@@ -943,8 +994,28 @@
                 alert('All tasks completed! 🎉');
             }
 
+            togglePause() {
+                if (!this.isRunning) return;
+
+                this.isPaused = !this.isPaused;
+                const pauseBtn = document.getElementById('pauseBtn');
+
+                if (this.isPaused) {
+                    pauseBtn.textContent = 'Resume';
+                    pauseBtn.classList.add('paused');
+                } else {
+                    pauseBtn.textContent = 'Pause';
+                    pauseBtn.classList.remove('paused');
+                }
+            }
+
             showCurrentTaskIndicator() {
                 document.getElementById('currentTaskIndicator').style.display = 'block';
+                // Reset pause button state
+                const pauseBtn = document.getElementById('pauseBtn');
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.classList.remove('paused');
+                this.isPaused = false;
             }
 
             hideCurrentTaskIndicator() {
